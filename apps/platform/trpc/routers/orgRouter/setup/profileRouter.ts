@@ -1,10 +1,10 @@
-import { z } from 'zod';
 import { router, orgProcedure, orgAdminProcedure } from '~platform/trpc/trpc';
-import { eq } from '@u22n/database/orm';
-import { orgs } from '@u22n/database/schema';
-import { typeIdValidator } from '@u22n/utils/typeid';
-import { TRPCError } from '@trpc/server';
 import { refreshOrgShortcodeCache } from '~platform/utils/orgShortcode';
+import { typeIdValidator } from '@u22n/utils/typeid';
+import { orgs } from '@u22n/database/schema';
+import { TRPCError } from '@trpc/server';
+import { eq } from '@u22n/database/orm';
+import { z } from 'zod';
 
 export const orgProfileRouter = router({
   getOrgProfile: orgProcedure
@@ -14,14 +14,8 @@ export const orgProfileRouter = router({
       })
     )
     .query(async ({ ctx, input }) => {
-      if (!ctx.account || !ctx.org) {
-        throw new TRPCError({
-          code: 'UNPROCESSABLE_CONTENT',
-          message: 'Account or Organization is not defined'
-        });
-      }
       const { db, org } = ctx;
-      const orgId = org?.id;
+      const orgId = org.id;
       const { orgPublicId } = input;
 
       const orgProfileQuery = await db.query.orgs.findFirst({
@@ -33,7 +27,7 @@ export const orgProfileRouter = router({
         where: orgPublicId ? eq(orgs.publicId, orgPublicId) : eq(orgs.id, orgId)
       });
 
-      if (!orgProfileQuery || !orgProfileQuery.publicId) {
+      if (!orgProfileQuery?.publicId) {
         throw new TRPCError({
           code: 'NOT_FOUND',
           message: 'Organization profile not found'
@@ -52,14 +46,8 @@ export const orgProfileRouter = router({
       })
     )
     .mutation(async ({ ctx, input }) => {
-      if (!ctx.account || !ctx.org) {
-        throw new TRPCError({
-          code: 'UNPROCESSABLE_CONTENT',
-          message: 'Account or Organization is not defined'
-        });
-      }
       const { db, org } = ctx;
-      const orgId = org?.id;
+      const orgId = org.id;
       const { orgName } = input;
 
       await db

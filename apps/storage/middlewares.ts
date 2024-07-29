@@ -1,15 +1,15 @@
-import { env } from './env';
-import { storage } from './storage';
-import type { Ctx } from './ctx';
 import { createMiddleware, getCookie } from '@u22n/hono/helpers';
 import { getTracer } from '@u22n/otel/helpers';
 import { flatten } from '@u22n/otel/exports';
+import { storage } from './storage';
+import type { Ctx } from './ctx';
+import { env } from './env';
 
 const middlewareTracer = getTracer('storage/hono/middleware');
 
 export const authMiddleware = createMiddleware<Ctx>(async (c, next) =>
   middlewareTracer.startActiveSpan('Auth Middleware', async (span) => {
-    const sessionCookie = getCookie(c, 'unsession');
+    const sessionCookie = getCookie(c, 'un-session');
     span?.setAttribute('req.auth.meta.has_cookie', !!sessionCookie);
     if (!sessionCookie) {
       c.set('account', null);

@@ -7,29 +7,29 @@ import {
   FormItem,
   FormMessage
 } from '@/src/components/shadcn-ui/form';
-import { Button } from '@/src/components/shadcn-ui/button';
-import { Separator } from '@/src/components/shadcn-ui/separator';
-import { Badge } from '@/src/components/shadcn-ui/badge';
-import { At, Lock } from '@phosphor-icons/react';
-import Link from 'next/link';
-import Image from 'next/image';
-import { useRouter } from 'next/navigation';
-import { useForm } from 'react-hook-form';
-import { z } from 'zod';
-import { zodSchemas } from '@u22n/utils/zodSchemas';
-import { zodResolver } from '@hookform/resolvers/zod';
-import { Input } from '@/src/components/shadcn-ui/input';
-import { PasswordInput } from '@/src/components/password-input';
 import {
   TurnstileComponent,
   turnstileEnabled
 } from '@/src/components/turnstile';
 import { TwoFactorDialog } from './_components/two-factor-dialog';
-import { Fingerprint } from '@phosphor-icons/react';
-import { platform } from '@/src/lib/trpc';
+import { Separator } from '@/src/components/shadcn-ui/separator';
+import { PasswordInput } from '@/src/components/password-input';
 import { startAuthentication } from '@simplewebauthn/browser';
-import { toast } from 'sonner';
+import { useRouter, useSearchParams } from 'next/navigation';
+import { Button } from '@/src/components/shadcn-ui/button';
+import { Badge } from '@/src/components/shadcn-ui/badge';
+import { Input } from '@/src/components/shadcn-ui/input';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { zodSchemas } from '@u22n/utils/zodSchemas';
+import { Fingerprint } from '@phosphor-icons/react';
+import { At, Lock } from '@phosphor-icons/react';
 import { useCallback, useState } from 'react';
+import { useForm } from 'react-hook-form';
+import { platform } from '@/src/lib/trpc';
+import Image from 'next/image';
+import { toast } from 'sonner';
+import Link from 'next/link';
+import { z } from 'zod';
 
 const loginSchema = z.object({
   username: zodSchemas.username(2),
@@ -40,11 +40,13 @@ export default function Page() {
   const router = useRouter();
   const [twoFactorDialogOpen, setTwoFactorDialogOpen] = useState(false);
   const [turnstileToken, setTurnstileToken] = useState<string | undefined>();
-  const generatePasskey =
-    platform.useUtils().auth.passkey.generatePasskeyChallenge;
+  const { mutateAsync: generatePasskeyChallenge } =
+    platform.auth.passkey.generatePasskeyChallenge.useMutation();
   const { mutateAsync: loginPasskey } =
     platform.auth.passkey.verifyPasskey.useMutation();
   const [loadingPasskey, setLoadingPasskey] = useState(false);
+  const searchParams = useSearchParams();
+  const redirectTo = searchParams.get('redirect_to');
 
   const form = useForm<z.infer<typeof loginSchema>>({
     resolver: zodResolver(loginSchema),
@@ -69,7 +71,7 @@ export default function Page() {
     }
     try {
       setLoadingPasskey(true);
-      const data = await generatePasskey.fetch({
+      const data = await generatePasskeyChallenge({
         turnstileToken
       });
       const response = await startAuthentication(data.options);
@@ -77,18 +79,22 @@ export default function Page() {
         verificationResponseRaw: response
       });
 
+      if (redirectTo) {
+        router.replace(decodeURIComponent(redirectTo));
+      }
+
       if (!defaultOrg) {
         toast.error('You are not a member of any organization', {
           description: 'Redirecting you to create an organization'
         });
-        router.push('/join/org');
+        router.replace('/join/org');
         return;
       }
 
       toast.success('Sign in successful!', {
         description: 'Redirecting you to your conversations'
       });
-      router.push(`/${defaultOrg}/convo`);
+      router.replace(`/${defaultOrg}/convo`);
     } catch (error) {
       if (error instanceof Error) {
         if (error.name === 'NotAllowedError') {
@@ -99,12 +105,18 @@ export default function Page() {
           });
         }
       } else {
-        console.error(error);
+        toast.error(String(error));
       }
     } finally {
       setLoadingPasskey(false);
     }
-  }, [generatePasskey, router, turnstileToken, loginPasskey]);
+  }, [
+    turnstileToken,
+    generatePasskeyChallenge,
+    loginPasskey,
+    redirectTo,
+    router
+  ]);
 
   const loginWithPassword = useCallback(
     async ({ username, password }: z.infer<typeof loginSchema>) => {
@@ -121,12 +133,13 @@ export default function Page() {
           turnstileToken
         });
         if (status === 'NO_2FA_SETUP') {
+          if (redirectTo) {
+            router.replace(decodeURIComponent(redirectTo));
+          }
           if (!defaultOrgShortcode) {
-            router.push('/join/org');
+            router.replace('/join/org');
           } else {
-            router.push(
-              `/${defaultOrgShortcode}/settings/user/security?code=NO_2FA_SETUP`
-            );
+            router.replace(`/${defaultOrgShortcode}/convo`);
           }
         } else {
           setTwoFactorDialogOpen(true);
@@ -135,7 +148,7 @@ export default function Page() {
         /* do nothing */
       }
     },
-    [loginPassword, router, turnstileToken]
+    [loginPassword, redirectTo, router, turnstileToken]
   );
 
   return (

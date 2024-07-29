@@ -18,9 +18,9 @@ import {
   mediumtext,
   customType
 } from 'drizzle-orm/mysql-core';
-import { relations } from 'drizzle-orm';
 import { typeIdDataType as publicId } from '@u22n/utils/typeid';
 import { uiColors } from '@u22n/utils/colors';
+import { relations } from 'drizzle-orm';
 
 // import { stripeBillingPeriods, stripePlanNames } from '../../ee/apps/billing';
 const stripeBillingPeriods = ['monthly', 'yearly'] as const;
@@ -67,6 +67,8 @@ export const accounts = mysqlTable(
     createdAt: timestamp('created_at').$defaultFn(() => new Date()),
     lastLoginAt: timestamp('last_login_at'),
     passwordHash: varchar('password_hash', { length: 255 }),
+    recoveryEmailHash: varchar('recovery_email_hash', { length: 255 }),
+    recoveryEmailVerifiedAt: timestamp('recovery_email_verified_at'),
     twoFactorSecret: varchar('two_factor_secret', { length: 255 }),
     twoFactorEnabled: boolean('two_factor_enabled').notNull().default(false),
     recoveryCode: varchar('recovery_code', { length: 256 }),
@@ -1253,8 +1255,8 @@ export type ConvoEntryMetadataEmailAddress = {
 
 export type ConvoEntryMetadataMissingParticipant = {
   type: 'user' | 'team';
-  publicId: String;
-  name: String;
+  publicId: string;
+  name: string;
 };
 
 export type ConvoEntryMetadataEmail = {

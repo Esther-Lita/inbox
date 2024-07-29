@@ -1,9 +1,9 @@
-import * as React from 'react';
-import { Slot } from '@radix-ui/react-slot';
 import { cva, type VariantProps } from 'class-variance-authority';
+import { Slot } from '@radix-ui/react-slot';
+import * as React from 'react';
 
-import { cn } from '@/src/lib/utils';
 import { SpinnerGap } from '@phosphor-icons/react';
+import { cn } from '@/src/lib/utils';
 
 //! This component has been modified from the original version in the shadcn-ui package
 
@@ -63,6 +63,8 @@ const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
     ref
   ) => {
     const Comp = asChild ? Slot : 'button';
+    const isIcon = size === 'icon' || size === 'icon-sm';
+
     return (
       <Comp
         className={cn(buttonVariants({ variant, size, className }))}
@@ -70,9 +72,12 @@ const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
         {...props}
         disabled={loading || disabled}>
         {loading ? (
-          <>
-            <SpinnerGap className="mr-1 h-5 w-5 animate-spin" /> {children}
-          </>
+          <div className="flex items-center justify-center">
+            <SpinnerGap
+              className={cn('animate-spin', isIcon ? 'size-4' : 'mr-1 size-5')}
+            />{' '}
+            {isIcon ? <span className="sr-only">{children}</span> : children}
+          </div>
         ) : (
           children
         )}

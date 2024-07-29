@@ -1,10 +1,10 @@
-import { env } from './env';
-import { ms } from '@u22n/utils/ms';
+import { createStorage, type Driver, type StorageValue } from 'unstorage';
 import redisDriver from 'unstorage/drivers/redis';
-import { createStorage, type StorageValue } from 'unstorage';
+import type { TypeId } from '@u22n/utils/typeid';
 import type { DatabaseSession } from 'lucia';
 import type { OrgContext } from './ctx';
-import type { TypeId } from '@u22n/utils/typeid';
+import { ms } from '@u22n/utils/ms';
+import { env } from './env';
 
 const createCachedStorage = <T extends StorageValue = StorageValue>(
   base: string,
@@ -15,13 +15,29 @@ const createCachedStorage = <T extends StorageValue = StorageValue>(
       url: env.DB_REDIS_CONNECTION_STRING,
       ttl,
       base
-    })
+    }) as Driver
   });
 
 export const storage = {
-  auth: createCachedStorage('auth', ms('5 minutes')),
-  twoFactorLoginChallenges: createCachedStorage<twoFactorLoginChallenges>(
+  passkeyChallenges: createCachedStorage<PasskeyChallenges>(
+    'passkey-challenges',
+    ms('5 minutes')
+  ),
+  twoFactorLoginChallenges: createCachedStorage<TwoFactorLoginChallenges>(
     'two-factor-login-challenges',
+    ms('5 minutes')
+  ),
+  twoFactorResetChallenges: createCachedStorage<TwoFactorResetChallenges>(
+    'two-factor-reset-challenges',
+    ms('5 minutes')
+  ),
+  recoveryEmailVerificationCodes:
+    createCachedStorage<RecoveryEmailVerificationCodes>(
+      'recovery-email-verification-codes',
+      ms('15 minutes')
+    ),
+  elevatedTokens: createCachedStorage<ElevatedTokens>(
+    'elevated-tokens',
     ms('5 minutes')
   ),
   orgContext: createCachedStorage<OrgContext>('org-context', ms('12 hours')),
@@ -31,7 +47,12 @@ export const storage = {
   )
 };
 
-type twoFactorLoginChallenges = {
+type PasskeyChallenges = {
+  type: 'registration' | 'authentication';
+  challenge: string;
+};
+
+type TwoFactorLoginChallenges = {
   account: {
     id: number;
     username: string;
@@ -39,4 +60,28 @@ type twoFactorLoginChallenges = {
   };
   defaultOrgSlug?: string;
   secret: string;
+};
+
+type TwoFactorResetChallenges = {
+  account: {
+    username: string;
+    publicId: TypeId<'account'>;
+  };
+  secret: string;
+};
+
+type RecoveryEmailVerificationCodes = {
+  account: {
+    id: number;
+    publicId: TypeId<'account'>;
+  };
+  recoveryEmail: string;
+};
+
+type ElevatedTokens = {
+  issuer: {
+    accountId: number;
+    sessionId: string;
+    deviceIp: string;
+  };
 };

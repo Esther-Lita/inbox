@@ -1,14 +1,14 @@
 'use client';
 
-import { DataTable } from '@/src/components/shared/table';
 import { useGlobalStore } from '@/src/providers/global-store-provider';
-import { platform } from '@/src/lib/trpc';
-import { columns } from './_components/columns';
-import useAwaitableModal from '@/src/hooks/use-awaitable-modal';
 import { ClaimAddressModal } from './_components/claim-address-modal';
-import { PageTitle } from '../../_components/page-title';
+import useAwaitableModal from '@/src/hooks/use-awaitable-modal';
 import { Skeleton } from '@/src/components/shadcn-ui/skeleton';
 import { Button } from '@/src/components/shadcn-ui/button';
+import { DataTable } from '@/src/components/shared/table';
+import { PageTitle } from '../../_components/page-title';
+import { columns } from './_components/columns';
+import { platform } from '@/src/lib/trpc';
 
 export default function Page() {
   const username = useGlobalStore((state) => state.user.username);
@@ -23,7 +23,7 @@ export default function Page() {
     isLoading: personalAddressesLoading,
     error: personalAddressesError,
     refetch: refetchPersonalAddresses
-  } = platform.account.addresses.getPersonalAddresses.useQuery({});
+  } = platform.account.addresses.getPersonalAddresses.useQuery();
 
   const [ClaimAddressModalRoot, claimAddress] = useAwaitableModal(
     ClaimAddressModal,

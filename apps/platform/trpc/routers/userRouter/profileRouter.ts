@@ -1,48 +1,11 @@
-import { z } from 'zod';
-import { router, accountProcedure } from '~platform/trpc/trpc';
-import { and, eq } from '@u22n/database/orm';
 import { orgMemberProfiles, orgs, orgMembers } from '@u22n/database/schema';
+import { router, accountProcedure } from '~platform/trpc/trpc';
 import { typeIdValidator } from '@u22n/utils/typeid';
+import { and, eq } from '@u22n/database/orm';
 import { TRPCError } from '@trpc/server';
+import { z } from 'zod';
 
 export const profileRouter = router({
-  // createProfile: accountProcedure
-  //   .input(
-  //     z.object({
-  //       fName: z.string(),
-  //       lName: z.string(),
-  //       handle: z.string().min(2).max(20),
-  //       defaultProfile: z.boolean().optional().default(false)
-  //     })
-  //   )
-  //   .mutation(async ({ ctx, input }) => {
-  //     const { db, user } = ctx;
-  //     const userId = user.id;
-
-  //     const newPublicId = typeIdGenerator('orgMemberProfile');
-  //     const insertUserProfileResponse = await db.insert(orgMemberProfiles).values({
-  //       userId: userId,
-  //       publicId: newPublicId,
-  //       firstName: input.fName,
-  //       lastName: input.lName,
-  //       defaultProfile: input.defaultProfile,
-  //       handle: input.handle
-  //     });
-
-  //     if (!insertUserProfileResponse.insertId) {
-  //       return {
-  //         success: false,
-  //         profileId: null,
-  //         error:
-  //           'Something went wrong, please retry. Contact our team if it persists'
-  //       };
-  //     }
-  //     return {
-  //       success: true,
-  //       profileId: newPublicId,
-  //       error: null
-  //     };
-  //   }),
   getOrgMemberProfile: accountProcedure
     .input(
       z.object({
@@ -55,7 +18,7 @@ export const profileRouter = router({
       const accountId = account.id;
 
       let orgId: number | null = null;
-      if (input.orgPublicId || input.orgShortcode) {
+      if (Boolean(input.orgPublicId ?? input.orgShortcode)) {
         const orgQuery = await db.query.orgs.findFirst({
           where: input.orgPublicId
             ? eq(orgs.publicId, input.orgPublicId)
@@ -66,9 +29,9 @@ export const profileRouter = router({
             id: true
           }
         });
-        orgId = orgQuery?.id || null;
+        orgId = orgQuery?.id ?? null;
       }
-      if ((input.orgPublicId || input.orgShortcode) && !orgId) {
+      if (Boolean(input.orgPublicId ?? input.orgShortcode) && !orgId) {
         throw new TRPCError({
           code: 'NOT_FOUND',
           message:
@@ -101,7 +64,7 @@ export const profileRouter = router({
         }
       });
 
-      if (!userOrgMembershipQuery || !userOrgMembershipQuery.profile) {
+      if (!userOrgMembershipQuery?.profile) {
         throw new TRPCError({
           code: 'NOT_FOUND',
           message: "We couldn't find your profile, please contact support."

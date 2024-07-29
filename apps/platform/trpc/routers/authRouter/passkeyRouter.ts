@@ -1,31 +1,32 @@
-import { z } from 'zod';
-import {
-  router,
-  turnstileProcedure,
-  publicProcedure
-} from '~platform/trpc/trpc';
-import { eq } from '@u22n/database/orm';
-import { accounts } from '@u22n/database/schema';
-import { TRPCError } from '@trpc/server';
-import type {
-  RegistrationResponseJSON,
-  AuthenticationResponseJSON
-} from '@simplewebauthn/types';
-import { typeIdGenerator, typeIdValidator } from '@u22n/utils/typeid';
-import { nanoIdToken, zodSchemas } from '@u22n/utils/zodSchemas';
-import { ms } from '@u22n/utils/ms';
 import {
   verifyRegistrationResponse,
   generateRegistrationOptions,
   generateAuthenticationOptions,
   verifyAuthenticationResponse
 } from '~platform/utils/auth/passkeys';
+import type {
+  RegistrationResponseJSON,
+  AuthenticationResponseJSON
+} from '@simplewebauthn/types';
+import {
+  router,
+  turnstileProcedure,
+  publicProcedure
+} from '~platform/trpc/trpc';
 import { createAuthenticator } from '~platform/utils/auth/passkeyUtils';
-import { validateUsername } from './signupRouter';
+import { deleteCookie, getCookie, setCookie } from '@u22n/hono/helpers';
+import { COOKIE_PASSKEY_CHALLENGE } from '~platform/utils/cookieNames';
+import { typeIdGenerator, typeIdValidator } from '@u22n/utils/typeid';
 import { createLuciaSessionCookie } from '~platform/utils/session';
-import { env } from '~platform/env';
-import { getCookie, setCookie } from '@u22n/hono/helpers';
+import { nanoIdToken, zodSchemas } from '@u22n/utils/zodSchemas';
 import { ratelimiter } from '~platform/trpc/ratelimit';
+import { validateUsername } from './signupRouter';
+import { accounts } from '@u22n/database/schema';
+import { datePlus } from '@u22n/utils/ms';
+import { TRPCError } from '@trpc/server';
+import { eq } from '@u22n/database/orm';
+import { env } from '~platform/env';
+import { z } from 'zod';
 
 export const passkeyRouter = router({
   // We use turnstile at start because there is no time to interact between starting and finishing the passkey registration
@@ -44,7 +45,7 @@ export const passkeyRouter = router({
       if (!available) {
         throw new TRPCError({
           code: 'FORBIDDEN',
-          message: error || "Username isn't available"
+          message: error ?? "Username isn't available"
         });
       }
 
@@ -96,7 +97,7 @@ export const passkeyRouter = router({
           if (!available) {
             throw new TRPCError({
               code: 'FORBIDDEN',
-              message: error || "Username isn't available"
+              message: error ?? "Username isn't available"
             });
           }
 
@@ -160,17 +161,15 @@ export const passkeyRouter = router({
     .use(
       ratelimiter({ limit: 20, namespace: 'signIn.passkey.generateChallenge' })
     )
-    .input(z.object({}))
-    .query(async ({ ctx }) => {
+    .mutation(async ({ ctx }) => {
       const { event } = ctx;
 
       const authChallengeId = nanoIdToken();
 
-      setCookie(event, 'unauth-challenge', authChallengeId, {
+      setCookie(event, COOKIE_PASSKEY_CHALLENGE, authChallengeId, {
         httpOnly: true,
         secure: env.NODE_ENV === 'production',
-        sameSite: 'Strict',
-        maxAge: ms('5 minutes'),
+        expires: datePlus('5 minutes'),
         domain: env.PRIMARY_DOMAIN
       });
       const passkeyOptions = await generateAuthenticationOptions({
@@ -195,7 +194,7 @@ export const passkeyRouter = router({
       const verificationResponse =
         input.verificationResponseRaw as AuthenticationResponseJSON;
 
-      const challengeCookie = getCookie(event, 'unauth-challenge');
+      const challengeCookie = getCookie(event, COOKIE_PASSKEY_CHALLENGE);
       if (!challengeCookie) {
         throw new TRPCError({
           code: 'BAD_REQUEST',
@@ -246,6 +245,7 @@ export const passkeyRouter = router({
         });
       }
 
+      deleteCookie(ctx.event, COOKIE_PASSKEY_CHALLENGE);
       await createLuciaSessionCookie(ctx.event, {
         accountId: account.id,
         username: account.username,

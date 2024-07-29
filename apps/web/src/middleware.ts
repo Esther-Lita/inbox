@@ -5,7 +5,13 @@ import {
 import { type NextRequest, NextResponse } from 'next/server';
 
 // Known public routes, add more as needed
-const publicRoutes = ['/', '/join', '/join/secure', '/recovery'];
+const publicRoutes = [
+  '/',
+  '/join',
+  '/join/secure',
+  '/recovery',
+  '/recovery/verify-email'
+];
 const publicDynamicRoutes = ['/join/invite'];
 
 export default async function middleware(req: NextRequest) {
@@ -17,6 +23,10 @@ export default async function middleware(req: NextRequest) {
   // Redirect if already logged in on login page
   if (['/', '/join', '/join/secure'].includes(path)) {
     if (await isAuthenticated()) {
+      const redirectTo = req.nextUrl.searchParams.get('redirect_to');
+      if (redirectTo) {
+        return NextResponse.redirect(new URL(redirectTo, req.nextUrl));
+      }
       const redirectData = await getAuthRedirection().catch(() => null);
       if (redirectData) {
         return NextResponse.redirect(
@@ -27,7 +37,7 @@ export default async function middleware(req: NextRequest) {
       // remove invalid session cookie
       const res = NextResponse.next();
       // eslint-disable-next-line drizzle/enforce-delete-with-where
-      res.cookies.delete('unsession');
+      res.cookies.delete('un-session');
       return res;
     }
   }

@@ -6,6 +6,7 @@ import {
 } from 'lucia';
 import { UnInboxDBAdapter } from './auth/adapter';
 import type { TypeId } from '@u22n/utils/typeid';
+import { COOKIE_SESSION } from './cookieNames';
 import { env } from '~platform/env';
 
 const adapter = new UnInboxDBAdapter();
@@ -14,7 +15,7 @@ const devMode = env.NODE_ENV === 'development';
 export const lucia = new Lucia(adapter, {
   sessionExpiresIn: devMode ? new TimeSpan(1, 'd') : new TimeSpan(4, 'w'),
   sessionCookie: {
-    name: 'unsession',
+    name: COOKIE_SESSION,
     attributes: {
       secure: !devMode,
       domain: env.PRIMARY_DOMAIN

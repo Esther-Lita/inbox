@@ -15,7 +15,7 @@ export default function Page() {
   const { isPending, mutateAsync } = api.orgs.addSkiffOffer.useMutation({
     onSuccess: () => {
       toast.success('Skiff offer added');
-      refetch();
+      void refetch();
     },
     onError: (error) => {
       toast.error(error.message);
@@ -49,7 +49,7 @@ export default function Page() {
                 toast.error('Org not found');
                 return;
               }
-              await mutateAsync({ orgId: data.org?.id });
+              await mutateAsync({ orgId: data.org.id });
             }}
             disabled={isPending}
             className="w-fit">

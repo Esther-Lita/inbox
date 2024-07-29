@@ -1,31 +1,16 @@
-import { z } from 'zod';
-import { router, eeProcedure } from '~platform/trpc/trpc';
-import { eq, and, sql } from '@u22n/database/orm';
 import { domains, orgBilling, orgMembers, orgs } from '@u22n/database/schema';
-import { isAccountAdminOfOrg } from '~platform/utils/account';
-import { TRPCError } from '@trpc/server';
+import { router, eeProcedure, orgAdminProcedure } from '~platform/trpc/trpc';
 import { billingTrpcClient } from '~platform/utils/tRPCServerClients';
+import { eq, and, sql } from '@u22n/database/orm';
+import { TRPCError } from '@trpc/server';
+import { z } from 'zod';
 
 export const billingRouter = router({
   getOrgBillingOverview: eeProcedure
-    .input(z.object({}))
+    .unstable_concat(orgAdminProcedure)
     .query(async ({ ctx }) => {
-      if (!ctx.account || !ctx.org) {
-        throw new TRPCError({
-          code: 'UNPROCESSABLE_CONTENT',
-          message: 'Account or Organization is not defined'
-        });
-      }
       const { db, org } = ctx;
-      const orgId = org?.id;
-
-      const isAdmin = await isAccountAdminOfOrg(org);
-      if (!isAdmin) {
-        throw new TRPCError({
-          code: 'UNAUTHORIZED',
-          message: 'You are not an admin'
-        });
-      }
+      const orgId = org.id;
 
       const orgBillingQuery = await db.query.orgBilling.findFirst({
         where: eq(orgBilling.orgId, orgId),
@@ -35,8 +20,8 @@ export const billingRouter = router({
         }
       });
 
-      const orgPlan = orgBillingQuery?.plan || 'free';
-      const orgPeriod = orgBillingQuery?.period || 'monthly';
+      const orgPlan = orgBillingQuery?.plan ?? 'free';
+      const orgPeriod = orgBillingQuery?.period ?? 'monthly';
 
       const activeOrgMembersCount = await db
         .select({ count: sql<number>`count(*)` })
@@ -52,24 +37,10 @@ export const billingRouter = router({
       };
     }),
   getOrgStripePortalLink: eeProcedure
-    .input(z.object({}))
+    .unstable_concat(orgAdminProcedure)
     .query(async ({ ctx }) => {
-      if (!ctx.account || !ctx.org) {
-        throw new TRPCError({
-          code: 'UNPROCESSABLE_CONTENT',
-          message: 'Account or Organization is not defined'
-        });
-      }
       const { org } = ctx;
-      const orgId = org?.id;
-
-      const isAdmin = await isAccountAdminOfOrg(org);
-      if (!isAdmin) {
-        throw new TRPCError({
-          code: 'UNAUTHORIZED',
-          message: 'You are not an admin'
-        });
-      }
+      const orgId = org.id;
 
       const orgPortalLink =
         await billingTrpcClient.stripe.links.getPortalLink.query({
@@ -87,6 +58,7 @@ export const billingRouter = router({
       };
     }),
   getOrgSubscriptionPaymentLink: eeProcedure
+    .unstable_concat(orgAdminProcedure)
     .input(
       z.object({
         plan: z.enum(['pro']),
@@ -94,23 +66,9 @@ export const billingRouter = router({
       })
     )
     .query(async ({ ctx, input }) => {
-      if (!ctx.account || !ctx.org) {
-        throw new TRPCError({
-          code: 'UNPROCESSABLE_CONTENT',
-          message: 'Account or Organization is not defined'
-        });
-      }
       const { db, org } = ctx;
-      const orgId = org?.id;
+      const orgId = org.id;
       const { plan, period } = input;
-
-      const isAdmin = await isAccountAdminOfOrg(org);
-      if (!isAdmin) {
-        throw new TRPCError({
-          code: 'UNAUTHORIZED',
-          message: 'You are not an admin'
-        });
-      }
 
       const orgSubscriptionQuery = await db.query.orgBilling.findFirst({
         where: eq(orgBilling.orgId, orgId),
@@ -133,7 +91,7 @@ export const billingRouter = router({
         );
 
       const activeOrgMembersCount = Number(
-        activeOrgMembersCountResponse[0]?.count || '0'
+        activeOrgMembersCountResponse[0]?.count ?? '0'
       );
       const orgSubLink =
         await billingTrpcClient.stripe.links.createSubscriptionPaymentLink.mutate(
@@ -155,9 +113,9 @@ export const billingRouter = router({
         subLink: orgSubLink.link
       };
     }),
-  isPro: eeProcedure.input(z.object({})).query(async ({ ctx }) => {
+  isPro: eeProcedure.query(async ({ ctx }) => {
     const { db, org } = ctx;
-    const orgId = org?.id || 0;
+    const orgId = org.id;
 
     const orgBillingResponse = await db.query.orgBilling.findFirst({
       where: eq(orgBilling.orgId, orgId),
@@ -165,12 +123,13 @@ export const billingRouter = router({
         plan: true
       }
     });
-    const orgPlan = orgBillingResponse?.plan || 'free';
+    const orgPlan = orgBillingResponse?.plan ?? 'free';
     return {
       isPro: orgPlan === 'pro'
     };
   }),
-  canAddDomain: eeProcedure.input(z.object({})).query(async ({ ctx }) => {
+
+  canAddDomain: eeProcedure.query(async ({ ctx }) => {
     const { db, org } = ctx;
 
     const orgBillingResponse = await db.query.orgBilling.findFirst({
@@ -215,7 +174,7 @@ export const billingRouter = router({
       };
     }
 
-    const allowedDomains: number = domainBonus.bonus.count as number;
+    const allowedDomains: number = domainBonus.bonus.count;
 
     const domainQuery = await db.query.domains.findMany({
       where: eq(domains.orgId, org.id),

@@ -1,6 +1,15 @@
 'use client';
 
-import { platform } from '@/src/lib/trpc';
+import {
+  Command,
+  CommandInput,
+  CommandList,
+  CommandEmpty,
+  CommandGroup,
+  CommandItem,
+  CommandLoading,
+  useCommandState
+} from 'cmdk';
 import {
   Select,
   SelectContent,
@@ -13,18 +22,17 @@ import {
   PopoverTrigger,
   PopoverContent
 } from '@/src/components/shadcn-ui/popover';
-import { type TypeId } from '@u22n/utils/typeid';
 import {
-  Command,
-  CommandInput,
-  CommandList,
-  CommandEmpty,
-  CommandGroup,
-  CommandItem,
-  CommandLoading,
-  useCommandState
-} from 'cmdk';
-import { useState, useMemo, useEffect } from 'react';
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger
+} from '@/src/components/shadcn-ui/tooltip';
+
+import {
+  type JSONContent,
+  emptyTiptapEditorContent
+} from '@u22n/tiptap/react/components';
+
 import {
   At,
   CaretDown,
@@ -32,31 +40,25 @@ import {
   Paperclip,
   Question
 } from '@phosphor-icons/react';
-import { z } from 'zod';
-import {
-  type JSONContent,
-  emptyTiptapEditorContent
-} from '@u22n/tiptap/react/components';
-import { Editor } from '@/src/components/shared/editor';
-import { atom, useAtom, useAtomValue, useSetAtom } from 'jotai';
-import useLoading from '@/src/hooks/use-loading';
-import { stringify } from 'superjson';
-import { toast } from 'sonner';
-import { useRouter } from 'next/navigation';
-import { useGlobalStore } from '@/src/providers/global-store-provider';
-import { useAddSingleConvo$Cache } from '../utils';
-import { Input } from '@/src/components/shadcn-ui/input';
-import { Button } from '@/src/components/shadcn-ui/button';
 import { useAttachmentUploader } from '@/src/components/shared/attachments';
-import { showNewConvoPanel } from '../atoms';
+import { useGlobalStore } from '@/src/providers/global-store-provider';
+import { atom, useAtom, useAtomValue, useSetAtom } from 'jotai';
 import { Avatar, AvatarIcon } from '@/src/components/avatar';
-import { cn } from '@/src/lib/utils';
+import { Button } from '@/src/components/shadcn-ui/button';
+import { Input } from '@/src/components/shadcn-ui/input';
 import { Badge } from '@/src/components/shadcn-ui/badge';
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger
-} from '@/src/components/shadcn-ui/tooltip';
+import { Editor } from '@/src/components/shared/editor';
+import { useState, useMemo, useEffect } from 'react';
+import { useMutation } from '@tanstack/react-query';
+import { useAddSingleConvo$Cache } from '../utils';
+import { type TypeId } from '@u22n/utils/typeid';
+import { showNewConvoPanel } from '../atoms';
+import { useRouter } from 'next/navigation';
+import { platform } from '@/src/lib/trpc';
+import { stringify } from 'superjson';
+import { cn } from '@/src/lib/utils';
+import { toast } from 'sonner';
+import { z } from 'zod';
 
 export interface ConvoParticipantShared {
   avatarTimestamp: Date | null;
@@ -360,36 +362,20 @@ export default function CreateConvoForm() {
   const addConvo = useAddSingleConvo$Cache();
   const [, setNewPanelOpen] = useAtom(showNewConvoPanel);
 
-  const { loading: isMessageLoading, run: createConvo } = useLoading(
-    async () => await startConvoCreation('message'),
-    {
-      onError: (err) => {
-        toast.error(err.message);
-      },
-      onSuccess: (data) => {
-        toast.success('Convo created, redirecting you to your conversion');
-        void addConvo(data.publicId).then(() => {
-          setNewPanelOpen(false);
-          router.push(`/${orgShortcode}/convo/${data.publicId}`);
-        });
-      }
+  const {
+    mutateAsync: createConvo,
+    isPending: isCreating,
+    variables: messageType
+  } = useMutation({
+    mutationFn: async (type: 'comment' | 'message') => startConvoCreation(type),
+    onSuccess: (data) => {
+      toast.success('Convo created, redirecting you to your conversion');
+      void addConvo(data.publicId).then(() => {
+        setNewPanelOpen(false);
+        router.push(`/${orgShortcode}/convo/${data.publicId}`);
+      });
     }
-  );
-
-  const { loading: isCommentLoading, run: createComment } = useLoading(
-    async () => await startConvoCreation('comment'),
-    {
-      onError: (err) => {
-        toast.error(err.message);
-      },
-      onSuccess: (data) => {
-        toast.success('Convo created, redirecting you to your conversion');
-        void addConvo(data.publicId).then(() => {
-          router.push(`/${orgShortcode}/convo/${data.publicId}`);
-        });
-      }
-    }
-  );
+  });
 
   const selectedEmailIdentityString = useMemo(() => {
     if (!selectedEmailIdentity) return null;
@@ -424,7 +410,7 @@ export default function CreateConvoForm() {
             }
             setSelectedEmailIdentity(value);
           }}>
-          <SelectTrigger className="h-fit">
+          <SelectTrigger>
             <SelectValue>
               {selectedEmailIdentityString ?? 'Select an Email Identity to Use'}
             </SelectValue>
@@ -470,7 +456,7 @@ export default function CreateConvoForm() {
           type="text"
           value={topic}
           onChange={(e) => setTopic(e.target.value)}
-          className="h-fit w-full"
+          className="w-full"
         />
       </div>
 
@@ -478,8 +464,6 @@ export default function CreateConvoForm() {
         <Editor
           initialValue={editorText}
           onChange={setEditorText}
-          // eslint-disable-next-line @typescript-eslint/no-empty-function
-          setEditor={() => {}}
         />
 
         <AttachmentArray attachments={attachments} />
@@ -498,15 +482,16 @@ export default function CreateConvoForm() {
             <Button
               variant="secondary"
               size={'sm'}
-              disabled={!isFormValid || isMessageLoading}
-              onClick={() => createComment()}>
+              loading={isCreating && messageType === 'comment'}
+              disabled={!isFormValid || isCreating}
+              onClick={() => createConvo('comment')}>
               Comment
             </Button>
             <Button
               size={'sm'}
-              loading={isMessageLoading}
-              disabled={!isFormValid || isCommentLoading}
-              onClick={() => createConvo()}>
+              loading={isCreating && messageType === 'message'}
+              disabled={!isFormValid || isCreating}
+              onClick={() => createConvo('message')}>
               Send
             </Button>
           </div>
@@ -531,6 +516,7 @@ function ParticipantsComboboxPopover({
   );
 
   const [currentSelectValue, setCurrentSelectValue] = useState('');
+  const [search, setSearch] = useState('');
   const hasExternalParticipants = useMemo(
     () =>
       selectedParticipants.some(
@@ -539,6 +525,30 @@ function ParticipantsComboboxPopover({
       ),
     [selectedParticipants]
   );
+
+  const setEmailParticipants = useSetAtom(newEmailParticipantsAtom);
+  const addSelectedParticipant = useSetAtom(selectedParticipantsAtom);
+
+  const addEmailParticipant = (email: string) => {
+    setEmailParticipants((prev) =>
+      prev.includes(email) ? prev : prev.concat(email)
+    );
+    addSelectedParticipant((prev) =>
+      prev.find((p) => p.publicId === email)
+        ? prev
+        : prev.concat({
+            type: 'email',
+            publicId: email,
+            address: email,
+            keywords: [email],
+            avatarPublicId: null,
+            avatarTimestamp: null,
+            color: null,
+            own: false,
+            name: email
+          })
+    );
+  };
 
   return (
     <div className="flex w-full items-center space-x-4">
@@ -638,11 +648,19 @@ function ParticipantsComboboxPopover({
             <CommandInput asChild>
               <Input
                 label="Search or type an Email address"
-                className="h-8"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
                 onKeyDown={(e) => {
                   // Hack to prevent cmdk from preventing Home and End keys
                   if (e.key === 'Home' || e.key === 'End') {
                     e.stopPropagation();
+                  }
+                  if (e.key === 'Enter') {
+                    if (z.string().email().safeParse(search).success) {
+                      addEmailParticipant(search);
+                      setCurrentSelectValue('');
+                      setSearch('');
+                    }
                   }
                 }}
                 onFocus={() => {
@@ -651,7 +669,7 @@ function ParticipantsComboboxPopover({
                 }}
               />
             </CommandInput>
-            <CommandList className="max-h-[calc(var(--radix-popover-content-available-height)*0.9)] overflow-scroll">
+            <CommandList className="max-h-[calc(var(--radix-popover-content-available-height)*0.9)] overflow-x-clip overflow-y-scroll">
               {loading && <CommandLoading>Loading Participants</CommandLoading>}
               <CommandGroup className="flex flex-col gap-2 px-1">
                 {!loading && <EmptyStateHandler />}

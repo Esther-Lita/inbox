@@ -1,11 +1,11 @@
-import { z } from 'zod';
 import { router, orgProcedure, orgAdminProcedure } from '~platform/trpc/trpc';
-import { eq, and } from '@u22n/database/orm';
-import { teams } from '@u22n/database/schema';
 import { typeIdGenerator, typeIdValidator } from '@u22n/utils/typeid';
-import { uiColors } from '@u22n/utils/colors';
-import { TRPCError } from '@trpc/server';
 import { addOrgMemberToTeamHandler } from './teamsHandler';
+import { teams } from '@u22n/database/schema';
+import { uiColors } from '@u22n/utils/colors';
+import { eq, and } from '@u22n/database/orm';
+import { TRPCError } from '@trpc/server';
+import { z } from 'zod';
 
 export const teamsRouter = router({
   createTeam: orgAdminProcedure
@@ -17,15 +17,9 @@ export const teamsRouter = router({
       })
     )
     .mutation(async ({ ctx, input }) => {
-      if (!ctx.account || !ctx.org) {
-        throw new TRPCError({
-          code: 'UNPROCESSABLE_CONTENT',
-          message: 'Account or Organization is not defined'
-        });
-      }
       const { db, org } = ctx;
 
-      const orgId = org?.id;
+      const orgId = org.id;
       const { teamName, teamDescription, teamColor } = input;
       const newPublicId = typeIdGenerator('teams');
 
@@ -41,15 +35,9 @@ export const teamsRouter = router({
         newTeamPublicId: newPublicId
       };
     }),
-  getOrgTeams: orgProcedure.input(z.object({})).query(async ({ ctx }) => {
-    if (!ctx.account || !ctx.org) {
-      throw new TRPCError({
-        code: 'UNPROCESSABLE_CONTENT',
-        message: 'User or Organization is not defined'
-      });
-    }
+  getOrgTeams: orgProcedure.query(async ({ ctx }) => {
     const { db, org } = ctx;
-    const orgId = org?.id;
+    const orgId = org.id;
 
     const teamQuery = await db.query.teams.findMany({
       columns: {
@@ -99,14 +87,8 @@ export const teamsRouter = router({
       })
     )
     .query(async ({ ctx, input }) => {
-      if (!ctx.account || !ctx.org) {
-        throw new TRPCError({
-          code: 'UNPROCESSABLE_CONTENT',
-          message: 'User or Organization is not defined'
-        });
-      }
       const { db, org } = ctx;
-      const orgId = org?.id;
+      const orgId = org.id;
 
       // Handle when adding database replicas
       const dbReplica = db;
@@ -175,12 +157,6 @@ export const teamsRouter = router({
       })
     )
     .mutation(async ({ ctx, input }) => {
-      if (!ctx.account || !ctx.org) {
-        throw new TRPCError({
-          code: 'UNPROCESSABLE_CONTENT',
-          message: 'Account or Organization is not defined'
-        });
-      }
       const { org, db } = ctx;
       const { teamPublicId, orgMemberPublicId } = input;
 
@@ -203,14 +179,8 @@ export const teamsRouter = router({
       })
     )
     .mutation(async ({ ctx, input }) => {
-      if (!ctx.account || !ctx.org) {
-        throw new TRPCError({
-          code: 'UNPROCESSABLE_CONTENT',
-          message: 'Account or Organization is not defined'
-        });
-      }
       const { org, db } = ctx;
-      const { teamPublicId, orgMemberPublicIds } = input;
+      const { teamPublicId } = input;
 
       const teamMembers = await db.query.teams.findFirst({
         where: and(eq(teams.publicId, teamPublicId), eq(teams.orgId, org.id)),
@@ -234,15 +204,15 @@ export const teamsRouter = router({
           message: 'Team not found'
         });
       }
-      const currentMembers = teamMembers.members.map(
-        (m) => m.orgMember.publicId
-      );
-      const newMembers = orgMemberPublicIds.filter(
-        (m) => !currentMembers.includes(m)
-      );
-      const removedMembers = currentMembers.filter(
-        (m) => !orgMemberPublicIds.includes(m)
-      );
+      // const currentMembers = teamMembers.members.map(
+      //   (m) => m.orgMember.publicId
+      // );
+      // const newMembers = orgMemberPublicIds.filter(
+      //   (m) => !currentMembers.includes(m)
+      // );
+      // const removedMembers = currentMembers.filter(
+      //   (m) => !orgMemberPublicIds.includes(m)
+      // );
 
       throw new TRPCError({
         code: 'NOT_IMPLEMENTED',

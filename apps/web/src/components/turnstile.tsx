@@ -1,6 +1,5 @@
 'use client';
 
-import React from 'react';
 import {
   Turnstile,
   type TurnstileProps,
@@ -9,6 +8,7 @@ import {
 import { useTheme } from 'next-themes';
 import { forwardRef } from 'react';
 import { env } from '../env';
+import React from 'react';
 
 export const turnstileEnabled = Boolean(env.NEXT_PUBLIC_TURNSTILE_SITE_KEY);
 
@@ -18,16 +18,18 @@ export const TurnstileComponent = forwardRef<
 >(({ options, ...props }, ref) => {
   const { resolvedTheme } = useTheme();
   return turnstileEnabled ? (
-    <div className="flex items-center justify-center">
-      <Turnstile
-        ref={ref}
-        siteKey={env.NEXT_PUBLIC_TURNSTILE_SITE_KEY!}
-        options={{
-          theme: (resolvedTheme as 'dark' | 'light') ?? 'auto',
-          ...options
-        }}
-        {...props}
-      />
+    <div className="pointer-events-none absolute left-0 top-0 flex h-full w-full items-end justify-center p-4">
+      <div className="pointer-events-auto">
+        <Turnstile
+          ref={ref}
+          siteKey={env.NEXT_PUBLIC_TURNSTILE_SITE_KEY!}
+          options={{
+            theme: (resolvedTheme as 'dark' | 'light') ?? 'auto',
+            ...options
+          }}
+          {...props}
+        />
+      </div>
     </div>
   ) : null;
 });

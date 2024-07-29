@@ -1,16 +1,5 @@
 'use client';
 
-import { useRouter } from 'next/navigation';
-import { useState, useMemo } from 'react';
-import { Button } from '@/src/components/shadcn-ui/button';
-import { Camera, FloppyDisk } from '@phosphor-icons/react';
-import { platform } from '@/src/lib/trpc';
-import { useGlobalStore } from '@/src/providers/global-store-provider';
-import useLoading from '@/src/hooks/use-loading';
-import { cn, generateAvatarUrl, openFilePicker } from '@/src/lib/utils';
-import { PageTitle } from '../_components/page-title';
-import { Skeleton } from '@/src/components/shadcn-ui/skeleton';
-import { Input } from '@/src/components/shadcn-ui/input';
 import {
   AlertDialog,
   AlertDialogContent,
@@ -18,8 +7,18 @@ import {
   AlertDialogHeader,
   AlertDialogTitle
 } from '@/src/components/shadcn-ui/alert-dialog';
-import AvatarCrop from '@/src/components/avatar-crop';
+import { cn, generateAvatarUrl, openFilePicker } from '@/src/lib/utils';
+import { useGlobalStore } from '@/src/providers/global-store-provider';
 import { useAvatarUploader } from '@/src/hooks/use-avatar-uploader';
+import { Skeleton } from '@/src/components/shadcn-ui/skeleton';
+import { Button } from '@/src/components/shadcn-ui/button';
+import { Camera, FloppyDisk } from '@phosphor-icons/react';
+import { Input } from '@/src/components/shadcn-ui/input';
+import AvatarCrop from '@/src/components/avatar-crop';
+import { PageTitle } from '../_components/page-title';
+import { useRouter } from 'next/navigation';
+import { platform } from '@/src/lib/trpc';
+import { useState, useMemo } from 'react';
 import { toast } from 'sonner';
 
 export default function ProfileComponent() {
@@ -57,15 +56,17 @@ export default function ProfileComponent() {
     }
   });
 
-  const updateOrgProfileApi =
-    platform.org.setup.profile.setOrgProfile.useMutation();
-  const { loading: saveLoading, run: saveOrgProfile } = useLoading(async () => {
-    await updateOrgProfileApi.mutateAsync({
-      orgName: orgNameValue,
-      orgShortcode
+  const { mutateAsync: updateOrgProfile, isPending: updatingOrgProfile } =
+    platform.org.setup.profile.setOrgProfile.useMutation({
+      onError: (error) => {
+        toast.error("Couldn't update org profile", {
+          description: error.message
+        });
+      },
+      onSuccess: () => {
+        updateOrg(orgShortcode, { name: orgNameValue });
+      }
     });
-    updateOrg(orgShortcode, { name: orgNameValue });
-  });
 
   if (!adminLoading && !isAdmin) {
     router.push(`/${orgShortcode}/settings`);
@@ -118,8 +119,10 @@ export default function ProfileComponent() {
         </div>
 
         <Button
-          loading={saveLoading}
-          onClick={() => saveOrgProfile({ clearData: true, clearError: true })}>
+          loading={updatingOrgProfile}
+          onClick={() =>
+            updateOrgProfile({ orgName: orgNameValue, orgShortcode })
+          }>
           <FloppyDisk size={20} />
           Save
         </Button>
